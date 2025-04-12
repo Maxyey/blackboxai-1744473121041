@@ -50,19 +50,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Admin login
     adminBtn.addEventListener('click', () => {
         adminModal.classList.remove('hidden');
-        adminModal.classList.add('flex');
+        document.body.classList.add('modal-open');
     });
 
     closeAdminModal.addEventListener('click', () => {
         adminModal.classList.add('hidden');
-        adminModal.classList.remove('flex');
+        document.body.classList.remove('modal-open');
     });
 
     // Close modal when clicking outside
     adminModal.addEventListener('click', (e) => {
         if (e.target === adminModal || e.target.classList.contains('backdrop-blur-sm')) {
             adminModal.classList.add('hidden');
-            adminModal.classList.remove('flex');
+            document.body.classList.remove('modal-open');
         }
     });
 
