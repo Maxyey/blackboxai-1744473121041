@@ -5,11 +5,19 @@ class GitHubStorageManager {
         this.branch = 'main';
         this.baseUrl = 'https://api.github.com';
         this.dataFile = 'songs-data.json';
+        this.retryAttempts = 3;
+        this.retryDelay = 1000;
     }
 
     async initialize() {
         try {
-            const data = await this.fetchSongsData();
+            // First check if we have a token
+            if (!this.getGitHubToken()) {
+                console.log('No GitHub token found, using local storage only');
+                return null;
+            }
+
+            const data = await this.fetchSongsDataWithRetry();
             if (!data) {
                 // Initialize with sample data if no songs exist
                 const sampleSongs = [
@@ -44,25 +52,43 @@ class GitHubStorageManager {
             return data;
         } catch (error) {
             console.error('Error initializing GitHub storage:', error);
-            return { songs: [], audioData: {} };
+            return null;
         }
     }
 
-    async fetchSongsData() {
+    async fetchSongsDataWithRetry(attempt = 1) {
         try {
-            const response = await fetch(`${this.baseUrl}/repos/${this.owner}/${this.repo}/contents/${this.dataFile}`);
+            const token = this.getGitHubToken();
+            if (!token) {
+                throw new Error('No GitHub token available');
+            }
+
+            const response = await fetch(`${this.baseUrl}/repos/${this.owner}/${this.repo}/contents/${this.dataFile}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
             if (!response.ok) {
                 if (response.status === 404) {
                     return null; // File doesn't exist yet
                 }
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem('github_token'); // Clear invalid token
+                    throw new Error('GitHub authentication failed');
+                }
                 throw new Error(`GitHub API error: ${response.statusText}`);
             }
+
             const data = await response.json();
             const content = atob(data.content);
             return JSON.parse(content);
         } catch (error) {
-            if (error.message.includes('404')) {
-                return null; // File doesn't exist yet
+            if (attempt < this.retryAttempts) {
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+                return this.fetchSongsDataWithRetry(attempt + 1);
             }
             throw error;
         }
@@ -70,8 +96,19 @@ class GitHubStorageManager {
 
     async saveSongsData(data) {
         try {
+            const token = this.getGitHubToken();
+            if (!token) {
+                throw new Error('No GitHub token available');
+            }
+
             const content = btoa(JSON.stringify(data, null, 2));
-            const currentFile = await this.fetchSongsData();
+            let currentFile;
+            
+            try {
+                currentFile = await this.fetchSongsDataWithRetry();
+            } catch (error) {
+                console.log('No existing file found, creating new one');
+            }
             
             const requestBody = {
                 message: 'Update songs data',
@@ -79,34 +116,45 @@ class GitHubStorageManager {
                 branch: this.branch
             };
 
-            if (currentFile) {
+            if (currentFile && currentFile.sha) {
                 requestBody.sha = currentFile.sha;
             }
 
             const response = await fetch(`${this.baseUrl}/repos/${this.owner}/${this.repo}/contents/${this.dataFile}`, {
                 method: 'PUT',
                 headers: {
-                    'Authorization': `Bearer ${this.getGitHubToken()}`,
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem('github_token'); // Clear invalid token
+                    throw new Error('GitHub authentication failed');
+                }
                 throw new Error(`GitHub API error: ${response.statusText}`);
             }
 
+            // Dispatch event to notify of successful save
+            window.dispatchEvent(new CustomEvent('githubSaveSuccess'));
             return true;
         } catch (error) {
             console.error('Error saving data to GitHub:', error);
+            // Dispatch event to notify of save failure
+            window.dispatchEvent(new CustomEvent('githubSaveError', { detail: error.message }));
             return false;
         }
     }
 
     getGitHubToken() {
-        // This should be replaced with a secure way to get the GitHub token
-        // For development, you can store it in localStorage or as an environment variable
         return localStorage.getItem('github_token');
+    }
+
+    isAuthenticated() {
+        return !!this.getGitHubToken();
     }
 }
 
