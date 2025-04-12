@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- Previous head content remains the same -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -96,37 +97,33 @@
     </div>
 
     <!-- Admin Login Modal -->
-    <div id="adminModal" class="fixed inset-0 hidden z-[9999]">
-        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
-        <!-- Modal -->
-        <div class="fixed inset-0 flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl">
-                <!-- Header -->
-                <div class="flex justify-between items-center p-6 border-b">
-                    <h3 class="text-xl font-semibold theme-text">Admin Login</h3>
-                    <button id="closeAdminModal" class="p-2 hover:bg-gray-100 rounded-full transition-all duration-300">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <!-- Form -->
-                <form id="adminLoginForm" class="p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Email</label>
-                        <input type="email" id="adminEmail" 
-                               class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                               autocomplete="email">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="adminPassword" 
-                               class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                               autocomplete="current-password">
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-300">
-                        Login
-                    </button>
-                </form>
+    <div id="adminModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-[9999]">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-6 border-b">
+                <h3 class="text-xl font-semibold theme-text">Admin Login</h3>
+                <button id="closeAdminModal" class="p-2 hover:bg-gray-100 rounded-full transition-all duration-300">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
+            <!-- Form -->
+            <form id="adminLoginForm" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="adminEmail" 
+                           class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                           autocomplete="email">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="adminPassword" 
+                           class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                           autocomplete="current-password">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-300">
+                    Login
+                </button>
+            </form>
         </div>
     </div>
 
