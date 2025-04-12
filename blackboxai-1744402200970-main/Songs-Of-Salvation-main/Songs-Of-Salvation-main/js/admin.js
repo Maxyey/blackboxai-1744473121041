@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const githubModal = document.getElementById('githubModal');
     const closeGithubModal = document.getElementById('closeGithubModal');
     const githubForm = document.getElementById('githubForm');
+    const syncGithubBtn = document.getElementById('syncGithubBtn');
+    const uploadAndSyncBtn = document.getElementById('uploadAndSyncBtn');
+    const saveAndSyncBtn = document.getElementById('saveAndSyncBtn');
 
     // Initialize
     await storage.initializeStorage();
@@ -55,10 +58,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     function updateGithubButtonStatus() {
-        const hasToken = !!localStorage.getItem('github_token');
+        const hasToken = githubStorage.isAuthenticated();
         githubBtn.innerHTML = `<i class="fab fa-github text-${hasToken ? 'teal' : 'gray'}-600"></i>`;
         githubBtn.title = hasToken ? 'GitHub Sync Enabled' : 'Setup GitHub Sync';
+        
+        // Show/hide sync buttons
+        syncGithubBtn.classList.toggle('hidden', !hasToken);
+        syncGithubBtn.classList.toggle('flex', hasToken);
+        uploadAndSyncBtn.classList.toggle('hidden', !hasToken);
+        saveAndSyncBtn.classList.toggle('hidden', !hasToken);
     }
+
+    // GitHub sync button handler
+    syncGithubBtn.addEventListener('click', async () => {
+        if (!githubStorage.isAuthenticated()) {
+            showNotification('Please set up GitHub token first', 'error');
+            githubBtn.click();
+            return;
+        }
+
+        try {
+            showNotification('Syncing with GitHub...', 'info');
+            await storage.saveSongs();
+            showNotification('Successfully synced with GitHub!');
+        } catch (error) {
+            console.error('Error syncing with GitHub:', error);
+            showNotification('Error syncing with GitHub: ' + error.message, 'error');
+        }
+    });
+
+    // Upload and sync button handler
+    uploadAndSyncBtn.addEventListener('click', async () => {
+        if (!githubStorage.isAuthenticated()) {
+            showNotification('Please set up GitHub token first', 'error');
+            githubBtn.click();
+            return;
+        }
+
+        const formData = {
+            name: document.getElementById('songName').value,
+            composer: document.getElementById('composer').value,
+            lyrics: document.getElementById('lyrics').value,
+            tags: document.getElementById('tags').value,
+            demoText: document.getElementById('demoText').value || 'Demo song'
+        };
+
+        const audioFile = document.getElementById('audioFile').files[0];
+        const audioUrl = document.getElementById('audioUrl').value;
+
+        try {
+            showNotification('Uploading and syncing song...', 'info');
+            
+            if (audioFile) {
+                const audioData = await readAudioFile(audioFile);
+                await storage.addSong(formData, audioData);
+            } else if (audioUrl) {
+                await storage.addSong(formData, null, audioUrl);
+            } else {
+                await storage.addSong(formData);
+            }
+
+            // Force sync to GitHub
+            await storage.saveSongs();
+            
+            uploadForm.reset();
+            await renderManageSongs();
+            showNotification('Song uploaded and synced to GitHub successfully!');
+        } catch (error) {
+            console.error('Error uploading and syncing song:', error);
+            showNotification('Error: ' + error.message, 'error');
+        }
+    });
+
+    // Save and sync button handler in edit modal
+    saveAndSyncBtn.addEventListener('click', async () => {
+        if (!githubStorage.isAuthenticated()) {
+            showNotification('Please set up GitHub token first', 'error');
+            githubBtn.click();
+            return;
+        }
+
+        const songId = document.getElementById('editSongId').value;
+        const audioFile = document.getElementById('editAudioFile').files[0];
+        const audioUrl = document.getElementById('editAudioUrl').value;
+        
+        const updatedSong = {
+            name: document.getElementById('editSongName').value,
+            composer: document.getElementById('editComposer').value,
+            lyrics: document.getElementById('editLyrics').value,
+            tags: document.getElementById('editTags').value,
+            demoText: document.getElementById('editDemoText').value || 'Demo song'
+        };
+
+        try {
+            showNotification('Saving and syncing changes...', 'info');
+            
+            if (audioFile) {
+                const audioData = await readAudioFile(audioFile);
+                await storage.updateSong(songId, updatedSong, audioData);
+            } else if (audioUrl) {
+                await storage.updateSong(songId, updatedSong, null, audioUrl);
+            } else {
+                await storage.updateSong(songId, updatedSong);
+            }
+
+            // Force sync to GitHub
+            await storage.saveSongs();
+            
+            closeEditModal.click();
+            await renderManageSongs();
+            showNotification('Changes saved and synced to GitHub successfully!');
+        } catch (error) {
+            console.error('Error saving and syncing changes:', error);
+            showNotification('Error: ' + error.message, 'error');
+        }
+    });
 
     // Upload form handler
     uploadForm.addEventListener('submit', async (e) => {
@@ -74,35 +188,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const audioFile = document.getElementById('audioFile').files[0];
         const audioUrl = document.getElementById('audioUrl').value;
-        let audioData = null;
 
         try {
             if (audioFile) {
-                audioData = await readAudioFile(audioFile);
-                const song = await storage.addSong(formData, audioData);
-                if (song) {
-                    uploadForm.reset();
-                    await renderManageSongs();
-                    showNotification('Song uploaded successfully!');
-                }
+                const audioData = await readAudioFile(audioFile);
+                await storage.addSong(formData, audioData);
             } else if (audioUrl) {
-                const song = await storage.addSong(formData, null, audioUrl);
-                if (song) {
-                    uploadForm.reset();
-                    await renderManageSongs();
-                    showNotification('Song uploaded successfully!');
-                }
+                await storage.addSong(formData, null, audioUrl);
             } else {
-                const song = await storage.addSong(formData);
-                if (song) {
-                    uploadForm.reset();
-                    await renderManageSongs();
-                    showNotification('Song uploaded successfully!');
-                }
+                await storage.addSong(formData);
             }
+            
+            uploadForm.reset();
+            await renderManageSongs();
+            showNotification('Song uploaded successfully!');
         } catch (error) {
             console.error('Error uploading song:', error);
-            showNotification('Error uploading song', 'error');
+            showNotification('Error: ' + error.message, 'error');
         }
     });
 
@@ -137,7 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotification('Song updated successfully!');
         } catch (error) {
             console.error('Error updating song:', error);
-            showNotification('Error updating song', 'error');
+            showNotification('Error: ' + error.message, 'error');
         }
     });
 
@@ -171,7 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        songs.forEach(async song => {
+        songs.forEach(song => {
             const songElement = document.createElement('div');
             songElement.className = 'bg-white rounded-lg shadow p-4 flex items-center justify-between';
             
@@ -204,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             `;
 
             // Edit button handler
-            songElement.querySelector('.edit-btn').addEventListener('click', async () => {
+            songElement.querySelector('.edit-btn').addEventListener('click', () => {
                 const songToEdit = storage.getSong(song.id);
                 showEditModal(songToEdit);
             });
@@ -213,15 +315,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             songElement.querySelector('.delete-btn').addEventListener('click', async () => {
                 if (confirm('Are you sure you want to delete this song?')) {
                     try {
-                        if (await storage.deleteSong(song.id)) {
-                            await renderManageSongs();
-                            showNotification('Song deleted successfully!');
-                        } else {
-                            showNotification('Error deleting song', 'error');
+                        await storage.deleteSong(song.id);
+                        await renderManageSongs();
+                        showNotification('Song deleted successfully!');
+                        
+                        // If GitHub sync is enabled, sync the deletion
+                        if (githubStorage.isAuthenticated()) {
+                            try {
+                                await storage.saveSongs();
+                                showNotification('Changes synced to GitHub!');
+                            } catch (error) {
+                                console.error('Error syncing deletion to GitHub:', error);
+                                showNotification('Error syncing to GitHub: ' + error.message, 'error');
+                            }
                         }
                     } catch (error) {
                         console.error('Error deleting song:', error);
-                        showNotification('Error deleting song', 'error');
+                        showNotification('Error: ' + error.message, 'error');
                     }
                 }
             });
@@ -267,7 +377,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showNotification(message, type = 'success') {
         const notification = document.createElement('div');
         notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${
-            type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            type === 'success' ? 'bg-green-500' :
+            type === 'error' ? 'bg-red-500' :
+            'bg-blue-500'
         } text-white transform transition-transform duration-300 translate-y-0`;
         
         notification.innerHTML = message;
