@@ -5,11 +5,12 @@ class StorageManager {
         this.initialized = false;
         this.lastSyncTime = 0;
         this.syncInterval = 30000; // Sync every 30 seconds
-        this.initializeStorage();
-        this.startAutoSync();
     }
 
-    startAutoSync() {
+    async startAutoSync() {
+        if (!this.initialized) {
+            await this.initializeStorage();
+        }
         // Set up periodic sync
         setInterval(async () => {
             await this.syncWithGitHub();
@@ -18,7 +19,11 @@ class StorageManager {
 
     async syncWithGitHub() {
         try {
-            const githubData = await githubStorage.fetchSongsData();
+            if (!githubStorage.isAuthenticated()) {
+                return; // Skip sync if not authenticated
+            }
+
+            const githubData = await githubStorage.fetchSongsDataWithRetry();
             if (githubData) {
                 // Only update if the data has changed
                 if (JSON.stringify(this.songs) !== JSON.stringify(githubData.songs) ||
@@ -38,19 +43,24 @@ class StorageManager {
 
     async initializeStorage() {
         try {
-            // First try to get data from GitHub
-            const githubData = await githubStorage.fetchSongsData();
-            
-            if (githubData) {
-                this.songs = githubData.songs;
-                this.audioData = githubData.audioData;
-                // Update local storage with GitHub data
-                localStorage.setItem('songs', JSON.stringify(this.songs));
-                localStorage.setItem('audioData', JSON.stringify(this.audioData));
-            } else {
-                // If no GitHub data, try local storage
-                this.songs = JSON.parse(localStorage.getItem('songs')) || [];
-                this.audioData = JSON.parse(localStorage.getItem('audioData')) || {};
+            // First try local storage
+            this.songs = JSON.parse(localStorage.getItem('songs')) || [];
+            this.audioData = JSON.parse(localStorage.getItem('audioData')) || {};
+
+            // If GitHub is authenticated, try to get data from there
+            if (githubStorage.isAuthenticated()) {
+                try {
+                    const githubData = await githubStorage.fetchSongsDataWithRetry();
+                    if (githubData) {
+                        this.songs = githubData.songs;
+                        this.audioData = githubData.audioData;
+                        // Update local storage with GitHub data
+                        localStorage.setItem('songs', JSON.stringify(this.songs));
+                        localStorage.setItem('audioData', JSON.stringify(this.audioData));
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch from GitHub, using local storage:', error);
+                }
             }
 
             // Initialize with sample data if no songs exist anywhere
@@ -85,11 +95,14 @@ class StorageManager {
                 await this.saveSongs();
             }
             this.initialized = true;
+            // Start auto-sync after successful initialization
+            this.startAutoSync();
         } catch (error) {
             console.error('Error initializing storage:', error);
-            // Fallback to local storage if GitHub fails
+            // Ensure we at least have local data
             this.songs = JSON.parse(localStorage.getItem('songs')) || [];
             this.audioData = JSON.parse(localStorage.getItem('audioData')) || {};
+            this.initialized = true;
         }
     }
 
@@ -99,7 +112,7 @@ class StorageManager {
         localStorage.setItem('audioData', JSON.stringify(this.audioData));
 
         // If GitHub token exists and we're in admin mode, also save to GitHub
-        if (localStorage.getItem('github_token') && localStorage.getItem('adminAuth') === 'true') {
+        if (githubStorage.isAuthenticated() && localStorage.getItem('adminAuth') === 'true') {
             try {
                 await githubStorage.saveSongsData({
                     songs: this.songs,
@@ -260,3 +273,8 @@ class StorageManager {
 
 // Create a single instance of StorageManager
 const storage = new StorageManager();
+
+// Initialize storage when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    storage.initializeStorage();
+});
